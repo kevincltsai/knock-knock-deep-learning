@@ -42,6 +42,7 @@ def train(model, optimizer, data, args):
         total_loss = 0
         for batch_i, (seq_in, target) in enumerate(data):
             # Train
+
             optimizer.zero_grad()
             output = model(seq_in)
             loss = F.cross_entropy(output, target)

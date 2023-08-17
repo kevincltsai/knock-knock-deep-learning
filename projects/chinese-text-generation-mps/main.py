@@ -1,5 +1,5 @@
 import argparse
-
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,47 +10,69 @@ from dataset import TextDataset
 from model import Net
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='Chinese text generation based on LSTM seq2seq model')
-    parser.add_argument('corpus', type=str,
-                        help='training corpus file')
-    parser.add_argument('output_model', type=str,
-                        help='output model file')
-    parser.add_argument('--seq-length', type=int, default=50,
-                        help='input sequence length (default: 50)')
-    parser.add_argument('--batch-size', type=int, default=32,
-                        help='training batch size (default: 32)')
-    parser.add_argument('--embedding-dim', type=int, default=256,
-                        help='embedding dimension for characters in corpus (default: 256)')
-    parser.add_argument('--hidden-dim', type=int, default=256,
-                        help='hidden state dimension (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.0001,
-                        help='learning rate (default: 0.0001)')
-    parser.add_argument('--dropout', type=float, default=0.2,
-                        help='dropout rate (default: 0.2)')
-    parser.add_argument('--epochs', type=int, default=30,
-                        help='number of epochs to train (default: 30)')
-    parser.add_argument('--log-interval', type=int, default=10,
-                        help='number of batches to wait before logging status (default: 10)')
-    return parser.parse_args()
+    # parser.add_argument('corpus', type=str,
+    #                     help='training corpus file')
+    # parser.add_argument('output_model', type=str,
+    #                     help='output model file')
+    # parser.add_argument('--seq-length', type=int, default=50,
+    #                     help='input sequence length (default: 50)')
+    # parser.add_argument('--batch-size', type=int, default=32,
+    #                     help='training batch size (default: 32)')
+    # parser.add_argument('--embedding-dim', type=int, default=256,
+    #                     help='embedding dimension for characters in corpus (default: 256)')
+    # parser.add_argument('--hidden-dim', type=int, default=256,
+    #                     help='hidden state dimension (default: 256)')
+    # parser.add_argument('--lr', type=float, default=0.0001,
+    #                     help='learning rate (default: 0.0001)')
+    # parser.add_argument('--dropout', type=float, default=0.2,
+    #                     help='dropout rate (default: 0.2)')
+    # parser.add_argument('--epochs', type=int, default=30,
+    #                     help='number of epochs to train (default: 30)')
+    # parser.add_argument('--log-interval', type=int, default=10,
+    #                     help='number of batches to wait before logging status (default: 10)')
+    # return parser.parse_args()
+
+class Args():
+    def __init__(self):
+        self.corpus = 'data/corpus.txt'
+        self.seq_length = 50
+        self.batch_size = 32
+        self.embedding_dim = 256
+        self.hidden_dim = 256
+        self.lr = 0.0001
+        self.dropout = 0.2
+        self.epochs = 1
+        self.log_interval = 1000
 
 def train(model, optimizer, data, args):
+      
+
+    if torch.has_mps:
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
+
+    print('now running on :', device)
     model.train()
+    model.to(device=device)
+    
 
     losses = []
     for epoch in range(args.epochs):
         total_loss = 0
-        i = 0
         for batch_i, (seq_in, target) in enumerate(data):
             # Train
+            
+            seq_in = seq_in.to(device=device)
+            target = target.to(device=device)
+
             optimizer.zero_grad()
-            output = model(seq_in) # seq_len x batch_size x |V|
-            loss = F.cross_entropy(output.view(-1, output.shape[-1]), target.t().reshape(-1))
+            output = model(seq_in)
+            loss = F.cross_entropy(output, target)
             loss.backward()
             optimizer.step()
 
             # Log training status
-            i += 1
             total_loss += loss.item()
             if batch_i % args.log_interval == 0:
                 print('Train epoch: {} ({:2.0f}%)\tLoss: {:.6f}'.format(epoch, 100. * batch_i / len(data), loss.item()))
@@ -70,14 +92,14 @@ def test(model, data, args):
     with torch.no_grad():
         for seq_in, target in data:
             output = model(seq_in)
-            loss = F.cross_entropy(output.view(-1, output.shape[-1]), target.t().reshape(-1))
+            loss = F.cross_entropy(output, target)
             total_loss += loss.item()
 
     avg_loss = total_loss / len(data)
     print('Test Loss: {:.6f}'.format(avg_loss))
 
 def main():
-    args = parse_args()
+    args = Args()
 
     print('BATCH_SIZE: {}'.format(args.batch_size))
     print('SEQ_LENGTH: {}'.format(args.seq_length))
